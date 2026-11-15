@@ -83,6 +83,9 @@ final class WFC_REST {
 		$recorded_at = isset( $body['recorded_at'] ) ? self::parse_timestamp( $body['recorded_at'] ) : false;
 		$statistics  = (array) $shape->statistics;
 		$claims      = isset( $body['claims'] ) ? $body['claims'] : array();
+		if ( isset( $shape->claims ) && ! is_array( $shape->claims ) ) {
+			return self::error( 'wfc_invalid_claims', 'claims must be a JSON array.', 400 );
+		}
 
 		if ( ! preg_match( '/^[A-Za-z0-9_-]{8,64}$/', $instance_id ) ) {
 			return self::error( 'wfc_invalid_instance', 'instance_id must be 8–64 letters, numbers, underscores or hyphens.', 400 );
