@@ -57,8 +57,8 @@ final class WFC_Admin {
 		$claims_table = WFC_Database::table( 'claims' );
 		$latest = $wpdb->get_results(
 			"SELECT s.* FROM {$snapshots_table} s
-			 INNER JOIN (SELECT instance_id, MAX(recorded_at) AS latest_at FROM {$snapshots_table} GROUP BY instance_id) latest
-			 ON latest.instance_id = s.instance_id AND latest.latest_at = s.recorded_at
+			 INNER JOIN (SELECT instance_id, MAX(id) AS latest_id FROM {$snapshots_table} GROUP BY instance_id) latest
+			 ON latest.latest_id = s.id
 			 ORDER BY s.recorded_at DESC LIMIT 20"
 		);
 		$recent_claims = $wpdb->get_results( "SELECT * FROM {$claims_table} ORDER BY claimed_at DESC LIMIT 30" );
