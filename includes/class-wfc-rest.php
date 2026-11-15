@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *   "instance_id": "stable-installation-id",
  *   "recorded_at": "RFC3339 timestamp with timezone",
  *   "statistics": { ... FarmWatch-owned statistics ... },
- *   "claims": [{ "claim_id": "stable-id", "app_id": 123, "title": "...", "claimed_at": "RFC3339" }]
+ *   "claims": [{ "claim_id": "stable-id", "target_type": "App|Sub", "target_id": 123, "source": "farmwatch", "claimed_at": "RFC3339" }]
  * }
  */
 final class WFC_REST {
@@ -110,18 +110,21 @@ final class WFC_REST {
 			if ( ! is_array( $claim ) ) {
 				return self::error( 'wfc_invalid_claim', 'Every claims entry must be an object.', 400 );
 			}
-			$app_id = isset( $claim['app_id'] ) && is_numeric( $claim['app_id'] ) ? (int) $claim['app_id'] : 0;
+			$target_type = isset( $claim['target_type'] ) && is_string( $claim['target_type'] ) ? $claim['target_type'] : ( isset( $claim['app_id'] ) ? 'App' : '' );
+			$target_id = isset( $claim['target_id'] ) && is_numeric( $claim['target_id'] ) ? (int) $claim['target_id'] : ( isset( $claim['app_id'] ) && is_numeric( $claim['app_id'] ) ? (int) $claim['app_id'] : 0 );
 			$claim_time = isset( $claim['claimed_at'] ) ? self::parse_timestamp( $claim['claimed_at'] ) : false;
-			if ( $app_id < 1 || $app_id > 4294967295 || false === $claim_time || $claim_time > $recorded_at + 300 || $claim_time < time() - YEAR_IN_SECONDS ) {
-				return self::error( 'wfc_invalid_claim', 'Each claim requires a valid Steam app_id and RFC3339 claimed_at timestamp.', 400 );
+			if ( ! in_array( $target_type, array( 'App', 'Sub' ), true ) || $target_id < 1 || $target_id > 4294967295 || false === $claim_time || $claim_time > $recorded_at + 300 || $claim_time < time() - YEAR_IN_SECONDS ) {
+				return self::error( 'wfc_invalid_claim', 'Each claim requires target_type App or Sub, a valid target_id and RFC3339 claimed_at timestamp.', 400 );
 			}
 			$claim_key = isset( $claim['claim_id'] ) && is_string( $claim['claim_id'] ) ? sanitize_text_field( $claim['claim_id'] ) : '';
 			if ( '' === $claim_key ) {
-				$claim_key = hash( 'sha256', $instance_id . ':' . $app_id . ':' . $claim_time );
+				$claim_key = hash( 'sha256', $instance_id . ':' . $target_type . ':' . $target_id . ':' . $claim_time );
 			}
 			$validated_claims[] = array(
 				'claim_key'  => substr( $claim_key, 0, 191 ),
-				'app_id'     => $app_id,
+				'target_type'=> $target_type,
+				'target_id'  => $target_id,
+				'app_id'     => 'App' === $target_type ? $target_id : 0,
 				'title'      => isset( $claim['title'] ) && is_string( $claim['title'] ) ? wp_html_excerpt( sanitize_text_field( $claim['title'] ), 255, '' ) : '',
 				'claimed_at' => gmdate( 'Y-m-d H:i:s', $claim_time ),
 			);
@@ -172,9 +175,11 @@ final class WFC_REST {
 		foreach ( $validated_claims as $claim ) {
 			$result = $wpdb->query(
 				$wpdb->prepare(
-					"INSERT IGNORE INTO {$claims_table} (instance_id, claim_key, app_id, title, claimed_at, created_at) VALUES (%s, %s, %d, %s, %s, %s)",
+					"INSERT IGNORE INTO {$claims_table} (instance_id, claim_key, target_type, target_id, app_id, title, claimed_at, created_at) VALUES (%s, %s, %s, %d, %d, %s, %s, %s)",
 					$instance_id,
 					$claim['claim_key'],
+					$claim['target_type'],
+					$claim['target_id'],
 					$claim['app_id'],
 					$claim['title'],
 					$claim['claimed_at'],
