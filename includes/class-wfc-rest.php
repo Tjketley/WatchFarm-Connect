@@ -47,6 +47,10 @@ final class WFC_REST {
 		}
 		try {
 			$date = new DateTimeImmutable( $value );
+			$errors = DateTimeImmutable::getLastErrors();
+			if ( is_array( $errors ) && ( $errors['warning_count'] > 0 || $errors['error_count'] > 0 ) ) {
+				return false;
+			}
 			return $date->getTimestamp();
 		} catch ( Exception $exception ) {
 			return false;
@@ -61,8 +65,12 @@ final class WFC_REST {
 			return self::error( 'wfc_payload_size', 'The request body must be between 1 byte and 256 KB.', 413 );
 		}
 
+		$shape = json_decode( $raw_body );
+		if ( JSON_ERROR_NONE !== json_last_error() || ! is_object( $shape ) || ! isset( $shape->statistics ) || ! is_object( $shape->statistics ) ) {
+			return self::error( 'wfc_invalid_json', 'Expected a JSON object containing a statistics object.', 400 );
+		}
 		$body = json_decode( $raw_body, true );
-		if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $body ) ) {
+		if ( ! is_array( $body ) ) {
 			return self::error( 'wfc_invalid_json', 'Expected a valid JSON object.', 400 );
 		}
 
@@ -73,7 +81,7 @@ final class WFC_REST {
 		$instance_id = isset( $body['instance_id'] ) && is_string( $body['instance_id'] ) ? $body['instance_id'] : '';
 		$upload_id   = isset( $body['upload_id'] ) && is_string( $body['upload_id'] ) ? strtolower( $body['upload_id'] ) : '';
 		$recorded_at = isset( $body['recorded_at'] ) ? self::parse_timestamp( $body['recorded_at'] ) : false;
-		$statistics  = isset( $body['statistics'] ) ? $body['statistics'] : null;
+		$statistics  = (array) $shape->statistics;
 		$claims      = isset( $body['claims'] ) ? $body['claims'] : array();
 
 		if ( ! preg_match( '/^[A-Za-z0-9_-]{8,64}$/', $instance_id ) ) {
@@ -111,7 +119,7 @@ final class WFC_REST {
 			$validated_claims[] = array(
 				'claim_key'  => substr( $claim_key, 0, 191 ),
 				'app_id'     => $app_id,
-				'title'      => isset( $claim['title'] ) && is_string( $claim['title'] ) ? mb_substr( sanitize_text_field( $claim['title'] ), 0, 255 ) : '',
+				'title'      => isset( $claim['title'] ) && is_string( $claim['title'] ) ? wp_html_excerpt( sanitize_text_field( $claim['title'] ), 255, '' ) : '',
 				'claimed_at' => gmdate( 'Y-m-d H:i:s', $claim_time ),
 			);
 		}
