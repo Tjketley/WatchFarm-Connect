@@ -4,7 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class WFC_Database {
-	const VERSION = '0.2.0';
+	const VERSION = '0.3.0';
 
 	public static function table( $suffix ) {
 		global $wpdb;
