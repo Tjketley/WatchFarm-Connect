@@ -4,7 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class WFC_Database {
-	const VERSION = '0.3.0';
+	const VERSION = '1.0.0';
 
 	public static function table( $suffix ) {
 		global $wpdb;
@@ -40,6 +40,7 @@ final class WFC_Database {
 			target_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			app_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			title varchar(255) NOT NULL DEFAULT '',
+			source varchar(32) NOT NULL DEFAULT 'farmwatch',
 			claimed_at datetime NOT NULL,
 			created_at datetime NOT NULL,
 			PRIMARY KEY  (id),
