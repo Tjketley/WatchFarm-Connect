@@ -4,6 +4,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class WFC_Database {
+	const VERSION = '0.2.0';
+
 	public static function table( $suffix ) {
 		global $wpdb;
 		return $wpdb->prefix . 'wfc_' . $suffix;
@@ -20,10 +22,12 @@ final class WFC_Database {
 		$sql_stats = "CREATE TABLE {$stats} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			instance_id varchar(64) NOT NULL,
+			upload_id char(36) DEFAULT NULL,
 			recorded_at datetime NOT NULL,
 			payload longtext NOT NULL,
 			created_at datetime NOT NULL,
 			PRIMARY KEY  (id),
+			UNIQUE KEY instance_upload (instance_id, upload_id),
 			KEY instance_recorded (instance_id, recorded_at),
 			KEY recorded_at (recorded_at)
 		) {$charset};";
@@ -58,6 +62,6 @@ final class WFC_Database {
 			);
 		}
 
-		update_option( 'wfc_db_version', WFC_VERSION );
+		update_option( 'wfc_db_version', self::VERSION );
 	}
 }
