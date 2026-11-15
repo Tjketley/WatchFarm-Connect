@@ -5,21 +5,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Versioned, one-way FarmWatch statistics receiver.
- *
- * Contract v1:
- * {
- *   "schema_version": 1,
- *   "upload_id": "UUID",
- *   "instance_id": "stable-installation-id",
- *   "recorded_at": "RFC3339 timestamp with timezone",
- *   "statistics": { ... FarmWatch-owned statistics ... },
- *   "claims": [{ "claim_id": "stable-id", "target_type": "App|Sub", "target_id": 123, "source": "farmwatch", "claimed_at": "RFC3339" }]
- * }
  */
 final class WFC_REST {
 	const MAX_BODY_BYTES = 262144;
-	const MAX_CLAIMS     = 500;
-	const RATE_LIMIT     = 120;
+	const MAX_CLAIMS = 500;
+	const RATE_LIMIT = 120;
 
 	public static function init() {
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
@@ -74,32 +64,32 @@ final class WFC_REST {
 			return self::error( 'wfc_invalid_json', 'Expected a valid JSON object.', 400 );
 		}
 
-		if ( ! isset( $body['schema_version'] ) || 1 !== $body['schema_version'] ) {
+		$schema_version = $body['schema_version'] ?? null;
+		$instance_id = isset( $body['instance_id'] ) && is_string( $body['instance_id'] ) ? $body['instance_id'] : '';
+		$upload_id = isset( $body['upload_id'] ) && is_string( $body['upload_id'] ) ? strtolower( $body['upload_id'] ) : '';
+		$recorded_at = self::parse_timestamp( $body['recorded_at'] ?? null );
+		$claims = isset( $body['claims'] ) ? $body['claims'] : array();
+
+		if ( 1 !== $schema_version ) {
 			return self::error( 'wfc_schema_version', 'Unsupported or missing schema_version. This receiver accepts version 1.', 400 );
 		}
-
-		$instance_id = isset( $body['instance_id'] ) && is_string( $body['instance_id'] ) ? $body['instance_id'] : '';
-		$upload_id   = isset( $body['upload_id'] ) && is_string( $body['upload_id'] ) ? strtolower( $body['upload_id'] ) : '';
-		$recorded_at = isset( $body['recorded_at'] ) ? self::parse_timestamp( $body['recorded_at'] ) : false;
-		$statistics  = (array) $shape->statistics;
-		$claims      = isset( $body['claims'] ) ? $body['claims'] : array();
 		if ( isset( $shape->claims ) && ! is_array( $shape->claims ) ) {
 			return self::error( 'wfc_invalid_claims', 'claims must be a JSON array.', 400 );
 		}
-
-		if ( ! preg_match( '/^[A-Za-z0-9_-]{8,64}$/', $instance_id ) ) {
-			return self::error( 'wfc_invalid_instance', 'instance_id must be 8–64 letters, numbers, underscores or hyphens.', 400 );
+		if ( ! preg_match( '/^[a-f0-9]{32}$/i', $instance_id ) ) {
+			return self::error( 'wfc_invalid_instance', 'instance_id must be a 32-character FarmWatch installation identifier.', 400 );
 		}
-		if ( ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $upload_id ) ) {
-			return self::error( 'wfc_invalid_upload_id', 'upload_id must be a UUID and must remain unchanged when retrying an upload.', 400 );
+		if ( ! preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $upload_id ) ) {
+			return self::error( 'wfc_invalid_upload_id', 'upload_id must be a version 4 UUID and must remain unchanged when retrying an upload.', 400 );
 		}
 		if ( false === $recorded_at || $recorded_at > time() + 300 || $recorded_at < time() - YEAR_IN_SECONDS ) {
 			return self::error( 'wfc_invalid_timestamp', 'recorded_at must be an RFC3339 timestamp within the last year and no more than five minutes in the future.', 400 );
 		}
-		if ( ! is_array( $statistics ) || ! is_array( $claims ) || count( $claims ) > self::MAX_CLAIMS ) {
-			return self::error( 'wfc_invalid_payload', 'statistics must be an object and claims must be an array of no more than 500 items.', 400 );
+		if ( ! is_array( $claims ) || count( $claims ) > self::MAX_CLAIMS ) {
+			return self::error( 'wfc_invalid_claims', 'claims must be an array containing no more than 500 entries.', 400 );
 		}
 
+		$statistics = (array) $shape->statistics;
 		$encoded = wp_json_encode( $statistics );
 		if ( false === $encoded || strlen( $encoded ) > self::MAX_BODY_BYTES ) {
 			return self::error( 'wfc_payload_too_large', 'The statistics object exceeds the 256 KB limit.', 413 );
@@ -110,27 +100,26 @@ final class WFC_REST {
 			if ( ! is_array( $claim ) ) {
 				return self::error( 'wfc_invalid_claim', 'Every claims entry must be an object.', 400 );
 			}
-			$target_type = isset( $claim['target_type'] ) && is_string( $claim['target_type'] ) ? $claim['target_type'] : ( isset( $claim['app_id'] ) ? 'App' : '' );
-			$target_id = isset( $claim['target_id'] ) && is_numeric( $claim['target_id'] ) ? (int) $claim['target_id'] : ( isset( $claim['app_id'] ) && is_numeric( $claim['app_id'] ) ? (int) $claim['app_id'] : 0 );
-			$claim_time = isset( $claim['claimed_at'] ) ? self::parse_timestamp( $claim['claimed_at'] ) : false;
-			if ( ! in_array( $target_type, array( 'App', 'Sub' ), true ) || $target_id < 1 || $target_id > 4294967295 || false === $claim_time || $claim_time > $recorded_at + 300 || $claim_time < 0 ) {
-				return self::error( 'wfc_invalid_claim', 'Each claim requires target_type App or Sub, a valid target_id and RFC3339 claimed_at timestamp.', 400 );
+			$claim_id = isset( $claim['claim_id'] ) && is_string( $claim['claim_id'] ) ? sanitize_text_field( $claim['claim_id'] ) : '';
+			$target_type = isset( $claim['target_type'] ) && is_string( $claim['target_type'] ) ? $claim['target_type'] : '';
+			$target_id = isset( $claim['target_id'] ) && is_numeric( $claim['target_id'] ) ? (int) $claim['target_id'] : 0;
+			$claimed_at = self::parse_timestamp( $claim['claimed_at'] ?? null );
+			$source = isset( $claim['source'] ) && is_string( $claim['source'] ) ? sanitize_key( $claim['source'] ) : 'farmwatch';
+
+			if ( ! preg_match( '/^[a-f0-9]{32}$/i', $claim_id ) || ! in_array( $target_type, array( 'App', 'Sub' ), true ) || $target_id < 1 || $target_id > 4294967295 || false === $claimed_at || $claimed_at > $recorded_at + 300 || $claimed_at < 0 ) {
+				return self::error( 'wfc_invalid_claim', 'Each claim requires a 32-character claim_id, target_type App or Sub, a valid target_id and RFC3339 claimed_at timestamp.', 400 );
 			}
-			$claim_key = isset( $claim['claim_id'] ) && is_string( $claim['claim_id'] ) ? sanitize_text_field( $claim['claim_id'] ) : '';
-			if ( '' === $claim_key ) {
-				$claim_key = hash( 'sha256', $instance_id . ':' . $target_type . ':' . $target_id . ':' . $claim_time );
-			}
+
 			$validated_claims[] = array(
-				'claim_key'  => substr( $claim_key, 0, 191 ),
-				'target_type'=> $target_type,
-				'target_id'  => $target_id,
-				'app_id'     => 'App' === $target_type ? $target_id : 0,
-				'title'      => isset( $claim['title'] ) && is_string( $claim['title'] ) ? wp_html_excerpt( sanitize_text_field( $claim['title'] ), 255, '' ) : '',
-				'claimed_at' => gmdate( 'Y-m-d H:i:s', $claim_time ),
+				'claim_key'   => $claim_id,
+				'target_type' => $target_type,
+				'target_id'   => $target_id,
+				'app_id'      => 'App' === $target_type ? $target_id : 0,
+				'source'      => substr( $source, 0, 32 ),
+				'claimed_at'  => gmdate( 'Y-m-d H:i:s', $claimed_at ),
 			);
 		}
 
-		// A valid token is required before this callback; rate-limit by authenticated instance.
 		$rate_key = 'wfc_rate_' . md5( $instance_id . ':' . hash( 'sha256', (string) $request->get_header( 'authorization' ) ) );
 		$count = (int) get_transient( $rate_key );
 		if ( $count >= self::RATE_LIMIT ) {
@@ -138,7 +127,7 @@ final class WFC_REST {
 		}
 		set_transient( $rate_key, $count + 1, 5 * MINUTE_IN_SECONDS );
 
-		$stats_table  = WFC_Database::table( 'snapshots' );
+		$stats_table = WFC_Database::table( 'snapshots' );
 		$claims_table = WFC_Database::table( 'claims' );
 		$wpdb->query( 'START TRANSACTION' );
 
@@ -159,15 +148,7 @@ final class WFC_REST {
 		}
 		if ( 0 === (int) $inserted ) {
 			$wpdb->query( 'ROLLBACK' );
-			return rest_ensure_response(
-				array(
-					'ok'             => true,
-					'duplicate'      => true,
-					'upload_id'      => $upload_id,
-					'claims_recorded'=> 0,
-					'received_at'    => gmdate( 'c' ),
-				)
-			);
+			return rest_ensure_response( array( 'ok' => true, 'duplicate' => true, 'upload_id' => $upload_id ) );
 		}
 
 		$snapshot_id = (int) $wpdb->insert_id;
@@ -175,13 +156,13 @@ final class WFC_REST {
 		foreach ( $validated_claims as $claim ) {
 			$result = $wpdb->query(
 				$wpdb->prepare(
-					"INSERT IGNORE INTO {$claims_table} (instance_id, claim_key, target_type, target_id, app_id, title, claimed_at, created_at) VALUES (%s, %s, %s, %d, %d, %s, %s, %s)",
+					"INSERT IGNORE INTO {$claims_table} (instance_id, claim_key, target_type, target_id, app_id, source, claimed_at, created_at) VALUES (%s, %s, %s, %d, %d, %s, %s, %s)",
 					$instance_id,
 					$claim['claim_key'],
 					$claim['target_type'],
 					$claim['target_id'],
 					$claim['app_id'],
-					$claim['title'],
+					$claim['source'],
 					$claim['claimed_at'],
 					current_time( 'mysql', true )
 				)
@@ -194,7 +175,6 @@ final class WFC_REST {
 		}
 
 		$wpdb->query( 'COMMIT' );
-
 		return rest_ensure_response(
 			array(
 				'ok'              => true,
