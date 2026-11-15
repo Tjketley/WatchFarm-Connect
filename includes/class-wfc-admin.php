@@ -97,7 +97,8 @@ final class WFC_Admin {
 				$cards = array(
 					__( 'Connected instances', 'watchfarm-connect' ) => number_format_i18n( $total_instances ),
 					__( 'Snapshots received', 'watchfarm-connect' ) => number_format_i18n( $total_uploads ),
-					__( 'Recorded claims', 'watchfarm-connect' ) => number_format_i18n( $total_claims ),
+					__( 'Lifetime claims', 'watchfarm-connect' ) => number_format_i18n( $claim_total ),
+					__( 'Stored claim events', 'watchfarm-connect' ) => number_format_i18n( $total_claims ),
 					__( 'Bots online / total', 'watchfarm-connect' ) => number_format_i18n( $bots_connected ) . ' / ' . number_format_i18n( $bots_total ),
 					__( 'Farming hours', 'watchfarm-connect' ) => number_format_i18n( $farming_seconds / 3600, 1 ),
 				);
