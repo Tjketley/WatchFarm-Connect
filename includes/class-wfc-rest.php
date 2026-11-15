@@ -113,7 +113,7 @@ final class WFC_REST {
 			$target_type = isset( $claim['target_type'] ) && is_string( $claim['target_type'] ) ? $claim['target_type'] : ( isset( $claim['app_id'] ) ? 'App' : '' );
 			$target_id = isset( $claim['target_id'] ) && is_numeric( $claim['target_id'] ) ? (int) $claim['target_id'] : ( isset( $claim['app_id'] ) && is_numeric( $claim['app_id'] ) ? (int) $claim['app_id'] : 0 );
 			$claim_time = isset( $claim['claimed_at'] ) ? self::parse_timestamp( $claim['claimed_at'] ) : false;
-			if ( ! in_array( $target_type, array( 'App', 'Sub' ), true ) || $target_id < 1 || $target_id > 4294967295 || false === $claim_time || $claim_time > $recorded_at + 300 || $claim_time < time() - YEAR_IN_SECONDS ) {
+			if ( ! in_array( $target_type, array( 'App', 'Sub' ), true ) || $target_id < 1 || $target_id > 4294967295 || false === $claim_time || $claim_time > $recorded_at + 300 || $claim_time < 0 ) {
 				return self::error( 'wfc_invalid_claim', 'Each claim requires target_type App or Sub, a valid target_id and RFC3339 claimed_at timestamp.', 400 );
 			}
 			$claim_key = isset( $claim['claim_id'] ) && is_string( $claim['claim_id'] ) ? sanitize_text_field( $claim['claim_id'] ) : '';
