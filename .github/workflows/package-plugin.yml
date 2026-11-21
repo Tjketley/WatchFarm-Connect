@@ -1,6 +1,9 @@
 name: Package WatchFarm Connect
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - fix/farmwatch-v1-receiver
