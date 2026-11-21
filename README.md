@@ -68,6 +68,10 @@ The plugin creates two tables using the active WordPress table prefix:
 
 Schema updates run automatically when the plugin is loaded. Deactivating the plugin does not delete stored data.
 
+## Automated package
+
+Every pull request targeting `main` builds and validates an installable ZIP named `watchfarm-connect.zip`, with the required lowercase `watchfarm-connect/` plugin directory. The ZIP is retained as a GitHub Actions artifact for seven days.
+
 ## Requirements
 
 - WordPress 6.4+
