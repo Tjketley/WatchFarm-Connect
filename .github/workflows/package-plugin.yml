@@ -1,6 +1,9 @@
 name: Package WatchFarm Connect
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -13,7 +16,7 @@ jobs:
   package:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out PR source
+      - name: Check out source
         uses: actions/checkout@v4
 
       - name: Build WordPress plugin ZIP
