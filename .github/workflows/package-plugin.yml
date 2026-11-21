@@ -1,0 +1,44 @@
+name: Package WatchFarm Connect
+
+on:
+  push:
+    branches:
+      - fix/farmwatch-v1-receiver
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build WordPress plugin ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/watchfarm-connect
+          while IFS= read -r -d '' file; do
+            case "$file" in
+              .github/*|.gitignore) continue ;;
+            esac
+            mkdir -p "dist/watchfarm-connect/$(dirname "$file")"
+            cp "$file" "dist/watchfarm-connect/$file"
+          done < <(git ls-files -z)
+          test -f dist/watchfarm-connect/watchfarm-connect.php
+          test -d dist/watchfarm-connect/includes
+          cd dist
+          zip -qr watchfarm-connect.zip watchfarm-connect
+          unzip -l watchfarm-connect.zip
+          unzip -t watchfarm-connect.zip
+
+      - name: Upload installable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: watchfarm-connect-wordpress-zip
+          path: dist/watchfarm-connect.zip
+          if-no-files-found: error
+          retention-days: 7
