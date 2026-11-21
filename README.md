@@ -70,7 +70,7 @@ Schema updates run automatically when the plugin is loaded. Deactivating the plu
 
 ## Automated package
 
-Every pull request targeting `main` builds and validates an installable ZIP named `watchfarm-connect.zip`, with the required lowercase `watchfarm-connect/` plugin directory. The ZIP is retained as a GitHub Actions artifact for seven days.
+Every pull request targeting `main` builds and validates an installable ZIP named `watchfarm-connect.zip`, with the required lowercase `watchfarm-connect/` plugin directory. The GitHub Actions artifact is named `watchfarm-connect-wordpress-zip` and is retained for seven days.
 
 ## Requirements
 
